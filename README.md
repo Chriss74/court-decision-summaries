@@ -12,3 +12,9 @@ python -m venv venv
 source venv/Scripts/activate
 pip install -r requirements.txt
 ```
+
+## Environment
+This application also requires setting up certain enviroment variables. Create a `.env` file like bellow
+```
+OPENAI_KEY=api_key
+```

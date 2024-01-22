@@ -5,11 +5,11 @@
     },
     "class1": {
         "name": "admissibility", 
-        "importance": 0.12
+        "importance": 0.15
     },
     "class2": {
         "name": "overview", 
-        "importance": 0.12
+        "importance": 0.04
     },
     "class3": {
         "name": "law", 
@@ -21,23 +21,23 @@
     },
     "class5": {
         "name": "previous-ruling", 
-        "importance": 0.15
+        "importance": 0.2
     },
     "class6": {
         "name": "facts", 
-        "importance": 0.15
+        "importance": 0.1
     },
     "class7": {
         "name": "party-claims", 
-        "importance": 0.15
+        "importance": 0.1
     },
     "class8": {
         "name": "court-response", 
-        "importance": 0.15
+        "importance": 0.3
     },
     "class9": {
         "name": "court-ruling", 
-        "importance": 0.15
+        "importance": 0.3
     },
     "class10": {
         "name": "important", 

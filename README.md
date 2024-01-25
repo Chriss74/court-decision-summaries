@@ -1,5 +1,5 @@
 # court-decision-summaries
-Master Thesis: This project employs OpenAI's language model to create summaries from structured judicial decisions. 
+Master Thesis: This project employs OpenAI's language model to create summaries from semi-structured judicial decisions. 
 
 # Prerequesites
 In this section we provide the prerequesites in order to use this project.

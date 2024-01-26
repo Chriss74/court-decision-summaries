@@ -225,7 +225,8 @@ def main():
             n_chunks = math.ceil((section_summary_tokens + section_input_tokens) / OPENAI_TOKEN_LIMIT)
             chunk_token_size=min((section_summary_tokens/ n_chunks) + (section_input_tokens / n_chunks)-all_prompt_tokens,3200)
             max_chunk_token_size = math.floor(max(chunk_token_size, max_section_summary_tokens))
-            #Math nx=4050/1+portion 
+            #Math nx=4050/1+portion
+            #na vrw enan orthologiko kai mathimatika artio tropo na xwrizw to keimeno 
             chunks=create_chunks(sentences,token_estimator, max_chunk_token_size)
             merged_section_summary=summarize_summaries(chunks, token_estimator, section, client, my_temperature, my_prompt, my_content)
             if section.class_name=="law":

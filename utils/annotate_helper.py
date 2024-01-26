@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import simpledialog, filedialog
+from tkinter import filedialog
 import json
 import os
 
@@ -26,11 +26,34 @@ class TextAnnotationApp:
 
         self.save_button = tk.Button(root, text="Save Annotations", command=self.save_annotations)
         self.save_button.pack(pady=10)
+        
+        #class color codes
+        self.class_info = {
+            "other": {"color": "#ff0000"},
+            "admissibility": {"color": "#00ff00"},
+            "overview": {"color": "#0000ff"},
+            "law": {"color": "#ffff00"},
+            "interpretation": {"color": "#ff00ff"},
+            "previous-ruling": {"color": "#00ffff"},
+            "facts": {"color": "#800080"},
+            "party-claims": {"color": "#008080"},
+            "court-response": {"color": "#808000"},
+            "court-ruling": {"color": "#008000"},
+            "important": {"color": "#800000"},
+            
+        }
 
         # Load mappings
         annotation_mappings_path = os.path.join(os.getcwd(), "documents", "annotation_mappings.json")
-        with open(annotation_mappings_path, "r", encoding="utf-8") as mapping_file:
-            self.annotation_mappings = json.load(mapping_file)
+        print(annotation_mappings_path)
+        try:
+            with open(annotation_mappings_path, "r", encoding="utf-8") as mapping_file:
+                self.annotation_mappings = json.load(mapping_file)
+        except:
+            annotation_mappings_path=os.path.join(self.parent_directory, "documents", "annotation_mappings.json")
+            with open(annotation_mappings_path, "r", encoding="utf-8") as mapping_file:
+                self.annotation_mappings = json.load(mapping_file)
+            
 
         # Drop-down list for classes
         self.selected_class_var = tk.StringVar(root)
@@ -39,7 +62,8 @@ class TextAnnotationApp:
         class_names = [class_info["name"] for class_info in self.annotation_mappings.values()]
         self.annotation_class_menu = tk.OptionMenu(root, self.selected_class_var, *class_names)
         self.annotation_class_menu.pack(pady=10)
-
+        
+        
     def load_text_from_file(self):
         self.file_path = filedialog.askopenfilename(filetypes=[("Text Files", "*.txt")])
 
@@ -59,25 +83,12 @@ class TextAnnotationApp:
         if selected_text:
             # Get the selected class
             selected_class_name = self.selected_class_var.get()
+            selected_class_id = next(class_id for class_id, class_info in self.annotation_mappings.items() if class_info["name"] == selected_class_name
+)
 
-            # Hardcode color
-            
-            class_info = {
-            "other": {"color": "#ff0000"},
-            "admissibility": {"color": "#00ff00"},
-            "overview": {"color": "#0000ff"},
-            "law": {"color": "#ffff00"},
-            "interpretation": {"color": "#ff00ff"},
-            "previous-ruling": {"color": "#00ffff"},
-            "facts": {"color": "#800080"},
-            "party-claims": {"color": "#008080"},
-            "court-response": {"color": "#808000"},
-            "court-ruling": {"color": "#008000"},
-            "important": {"color": "#800000"},
-        }
 
             # Save the annotation (dictionary)
-            annotation = {"class_id": selected_class_name, "text": selected_text}
+            annotation = {"class_id": selected_class_id, "text": selected_text}
 
             # Temporary json annotation file in order to keep track of changes
             annotations_path = os.path.join(os.getcwd(), "annotations.json")
@@ -95,7 +106,7 @@ class TextAnnotationApp:
 
             # background update
             tag_name = f"{selected_class_name}_tag"
-            self.text_box.tag_configure(tag_name, background=class_info[selected_class_name]["color"])
+            self.text_box.tag_configure(tag_name, background=self.class_info[selected_class_name]["color"])
             start_index = self.text_box.search(selected_text, "1.0", stopindex=tk.END)
             end_index = f"{start_index}+{len(selected_text)}c"
             self.text_box.tag_add(tag_name, start_index, end_index)
@@ -132,6 +143,7 @@ class TextAnnotationApp:
             os.remove("annotations.json")
         except FileNotFoundError:
             pass  # File not found, nothing to delete
+              
 
 if __name__ == "__main__":
     root = tk.Tk()

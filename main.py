@@ -93,8 +93,6 @@ def split_to_sentences(text: str) -> List[str]:
     return sentences
  
 def openaicompletion(client: OpenAI, text, my_temperature, my_prompt, my_content, my_max=400):
-    print(my_prompt)
-    print(my_content)
     response = client.chat.completions.create(
         model='gpt-3.5-turbo',
         temperature=my_temperature,
@@ -152,18 +150,16 @@ def summarize_summaries(chunks, token_estimator, section, client, my_temperature
 #     return max_x
  
 def main():
-    load_dotenv()
+    load_dotenv(override=True)
  
-    # OPENAI_KEY=getenv('OPENAI_KEY')
-    OPENAI_KEY="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"
-    print(OPENAI_KEY)
- 
+    OPENAI_KEY=getenv('OPENAI_KEY')
+     
     OPENAI_TOKEN_LIMIT = 4050
     my_prompt='You are a legal professional. Answer in greek and use legal language'
     
     annotation_mappings = read_json_file(join('documents', 'annotation_mappings.json'))
  
-    annotated_decision = AnnotatedDecision.from_json(join('documents', 'annotated_decisions', 'ste_2325-2023.json'), annotation_mappings)
+    annotated_decision = AnnotatedDecision.from_json(join('documents', 'annotated_decisions', 'ste_2221-2023.json'), annotation_mappings)
  
     print(annotated_decision.document_id)
  
@@ -193,7 +189,7 @@ def main():
             my_content="Summarize. If you can't, give the basic notion."
         elif section.class_name=='law':
             my_temperature=1.0
-            my_content="Give a list of number article, paragraph, name and the title of the law/article, mentioned in this text"
+            my_content="Give only a list of number article, paragraph, name and the title of the laws, mentioned in this text"
             max_section_summary_tokens=250
         elif section.class_name=='interpretation':
             my_temperature=0.7
@@ -215,6 +211,7 @@ def main():
             my_content="Tell me what the court ruled.Use greek language"
         elif section.class_name=='important':
             my_temperature=0.7
+            my_content="Summarize. If you can't, give the basic notion.Use greek language"
 
         section_input_tokens = token_estimator.estimate(section.text)
         importance_times_tokens = section_input_tokens * section.importance
@@ -234,15 +231,13 @@ def main():
             if section.class_name=="law":
                 law_list.append(merged_section_summary)
                 continue
+            
             merged_section_summary_tokens=token_estimator.estimate(merged_section_summary)
-            while merged_section_summary_tokens>3200:
+            if merged_section_summary_tokens>3200:
                 sentences=split_to_sentences(merged_section_summary)
                 chunks=create_chunks(sentences,token_estimator, 3300)
                 merged_section_summary=summarize_summaries(chunks, token_estimator, section, client, my_temperature, my_prompt, my_content)
-                print("while ", merged_section_summary)
                 merged_section_summary_tokens=token_estimator.estimate(merged_section_summary)
-            #TO DO: what if merged_section_summaries is too long? Chunks, same as before DONE!!!!!
-            #TO DO: calculate token length of prompt and use it to calculate chunk sizes
             merged_full_summary=merged_full_summary+merged_section_summary
             
         else:
@@ -251,14 +246,19 @@ def main():
             merged_full_summary=merged_full_summary+summary
             
     merged_full_summary_tokens=token_estimator.estimate(merged_full_summary)
+    
     if merged_full_summary_tokens>10000:
-         sections = [merged_full_summary[i:i + 2500] for i in range(0, len(merged_full_summary), 2500)]
-    my_content="Further summarize this court decision summary"
-    summaries = []
-    for section in sections:
-        response = openaicompletion(client, merged_full_summary, my_temperature, my_prompt, my_content,1500)
-        summary = response.choices[0].message.content
-        summaries.append(summary)
+        print(merged_full_summary_tokens)
+        print("further summarization")
+        sections = [merged_full_summary[i:i + 2500] for i in range(0, len(merged_full_summary), 2500)]
+        my_content="Further summarize this court decision summary"
+        summaries = []
+        for section in sections:
+            response = openaicompletion(client, merged_full_summary, my_temperature, my_prompt, my_content,1500)
+            summary = response.choices[0].message.content
+            summaries.append(summary)
+        merged_full_summary="/n".join(summaries)
+        
     
     print(annotated_decision.document_id)
     print(annotated_decision.court)
@@ -267,7 +267,7 @@ def main():
     print("ΣΗΜΑΝΤΙΚΗ ΝΟΜΟΘΕΣΙΑ")
     print(law_list)
     print ("ΠΕΡΙΛΗΨΗ")
-    print("\n".join(summaries))
+    print(merged_full_summary)
             
             #print(chunks)
             # for item in chunks:

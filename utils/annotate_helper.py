@@ -9,7 +9,8 @@ class TextAnnotationApp:
         self.root = root
         self.root.title("Text Annotation Tool")
         
-        self.parent_directory=os.path.abspath(os.path.join(os.path.abspath(os.getcwd()), os.pardir))
+        self.parent_directory=os.path.abspath(os.getcwd())
+
         
         self.text_box = tk.Text(root, wrap="word", width=80, height=20)
         self.text_box.pack(side="left", expand=True, fill="both")

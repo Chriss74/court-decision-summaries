@@ -1,0 +1,70 @@
+ROUGE Scores for ste_1412-2024 (Plain):
+rouge1: Precision: 0.42, Recall: 0.48, F1: 0.45
+rouge2: Precision: 0.24, Recall: 0.28, F1: 0.26
+rougeL: Precision: 0.34, Recall: 0.39, F1: 0.36
+
+ROUGE Scores for ste_1412-2024 (My):
+rouge1: Precision: 0.50, Recall: 0.05, F1: 0.08
+rouge2: Precision: 0.33, Recall: 0.02, F1: 0.04
+rougeL: Precision: 0.50, Recall: 0.05, F1: 0.08
+
+-----------------------------
+
+ROUGE Scores for ste_1508-2024 (Plain):
+rouge1: Precision: 0.53, Recall: 0.50, F1: 0.52
+rouge2: Precision: 0.32, Recall: 0.30, F1: 0.31
+rougeL: Precision: 0.44, Recall: 0.41, F1: 0.42
+
+ROUGE Scores for ste_1508-2024 (My):
+rouge1: Precision: 1.00, Recall: 0.06, F1: 0.11
+rouge2: Precision: 1.00, Recall: 0.03, F1: 0.06
+rougeL: Precision: 1.00, Recall: 0.06, F1: 0.11
+
+-----------------------------
+
+ROUGE Scores for ste_1537-2023 (Plain):
+rouge1: Precision: 0.47, Recall: 0.30, F1: 0.36
+rouge2: Precision: 0.14, Recall: 0.08, F1: 0.10
+rougeL: Precision: 0.26, Recall: 0.16, F1: 0.20
+
+ROUGE Scores for ste_1537-2023 (My):
+rouge1: Precision: 1.00, Recall: 0.03, F1: 0.06
+rouge2: Precision: 1.00, Recall: 0.02, F1: 0.03
+rougeL: Precision: 1.00, Recall: 0.03, F1: 0.06
+
+-----------------------------
+
+ROUGE Scores for ste_2221-2023 (Plain):
+rouge1: Precision: 0.52, Recall: 0.34, F1: 0.41
+rouge2: Precision: 0.37, Recall: 0.24, F1: 0.29
+rougeL: Precision: 0.45, Recall: 0.30, F1: 0.36
+
+ROUGE Scores for ste_2221-2023 (My):
+rouge1: Precision: 0.85, Recall: 0.23, F1: 0.37
+rouge2: Precision: 0.75, Recall: 0.20, F1: 0.31
+rougeL: Precision: 0.85, Recall: 0.23, F1: 0.37
+
+-----------------------------
+
+ROUGE Scores for ste_2325-2023 (Plain):
+rouge1: Precision: 0.44, Recall: 0.57, F1: 0.50
+rouge2: Precision: 0.27, Recall: 0.36, F1: 0.31
+rougeL: Precision: 0.38, Recall: 0.50, F1: 0.43
+
+ROUGE Scores for ste_2325-2023 (My):
+rouge1: Precision: 0.48, Recall: 0.65, F1: 0.55
+rouge2: Precision: 0.28, Recall: 0.38, F1: 0.33
+rougeL: Precision: 0.37, Recall: 0.50, F1: 0.43
+
+-----------------------------
+
+Average ROUGE Scores:
+rouge1 (Plain): F1: 0.45
+rouge1 (My): F1: 0.24
+rouge2 (Plain): F1: 0.26
+rouge2 (My): F1: 0.15
+rougeL (Plain): F1: 0.36
+rougeL (My): F1: 0.21
+
+-----------------------------
+

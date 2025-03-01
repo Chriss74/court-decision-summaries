@@ -4,287 +4,143 @@ import math
 import tiktoken
 from openai import OpenAI
 from dotenv import load_dotenv
-from os import getenv
+from os import getenv, makedirs
 from typing import List, Dict, Any
 from os.path import join
- 
- 
+
+
 def read_json_file(file_path: str) -> Dict[str, Any]:
     with open(file_path, 'r', encoding='utf-8') as json_file:
         return json.load(json_file)
- 
+
+
 class TokenEstimator:
     def __init__(self, model: str = 'gpt-4') -> None:
         self.encoding = tiktoken.encoding_for_model(model)
- 
+
     def estimate(self, text: str) -> int:
         return len(self.encoding.encode(text))
- 
-class AnnotatedSection:
-    def __init__(
-            self, 
-            class_id: List[str], 
-            text: str,
-            importance: int,
-            class_name: str) -> None:
-        self.class_id = class_id
-        self.text = text
-        self.importance = importance
-        self.class_name = class_name
-        
-    
-        
- 
-class AnnotatedDecision:
-    def __init__(
-            self, 
-            document_id: str, 
-            court: str, 
-            legal_remedy: str, 
-            related_department: str,
-            annotations: List[AnnotatedSection]) -> None:
-        
-        self.document_id = document_id
-        self.court = court
-        self.legal_remedy = legal_remedy
-        self.related_department = related_department
-        self.annotations = annotations
-    
-    @classmethod
-    def from_json(cls, annotated_decision_path: str, annotated_mappings_dict: Dict[str, Any]) -> 'AnnotatedDecision':
-        annotated_decision_dict = read_json_file(annotated_decision_path)
- 
-        annotated_sections = [
-            AnnotatedSection(
-                section['class_id'], 
-                section['text'], 
-                annotated_mappings_dict[section['class_id']]['importance'],
-                annotated_mappings_dict[section['class_id']]['name'])
-            for section in annotated_decision_dict['annotations']]
- 
-        return AnnotatedDecision(
-            annotated_decision_dict['document_id'],
-            annotated_decision_dict['court'],
-            annotated_decision_dict['legal_remedy'],
-            annotated_decision_dict['related_department'],
-            annotated_sections
-            )
-    
-    def construct_document(self):
-        document = ''
-        for annotated_section in self.annotations:
-            document = f'{document} {annotated_section.text}'
- 
-        return document
-    
-    def get_document_tokens(self, token_estimator: TokenEstimator) -> int:
-        return token_estimator.estimate(self.construct_document())
-    
-    
-def split_to_sentences(text: str) -> List[str]:
-    sentences = []
-    previous_fullstop_index = 0
- 
-    for match in re.finditer(r'(\.)(\s+[Α-Ω])', text):
-        fullstop_index = match.span()[0]
-        sentences.append(text[previous_fullstop_index+1:fullstop_index+1])
-        previous_fullstop_index = fullstop_index
-    
-    return sentences
- 
-def openaicompletion(client: OpenAI, text, my_temperature, my_prompt, my_content, my_max=400):
-    response = client.chat.completions.create(
-        model='gpt-3.5-turbo',
-        temperature=my_temperature,
-        #max_tokens=my_max,
-        messages=[
-            {
-                'role': 'system',
-                'content': f'{my_prompt}'
-            },
-            {
-                'role': 'user',
-                'content': f'{my_content}:\n{text}'
-                
-            }
-        ],
-    )
- 
-    return response
 
-def create_chunks(sentences,token_estimator, max_chunk_token_size):
-    chunks = []
-    chunk = ''
-    chunk_token_size = 0
+
+def split_text_into_chunks(text, max_tokens, token_estimator):
+    """Σπάει το κείμενο σε τμήματα που δεν ξεπερνούν τα max_tokens."""
+    sentences = text.split(". ")
+    chunks, chunk, chunk_token_size = [], "", 0
+
     for sentence in sentences:
         sentence_tokens = token_estimator.estimate(sentence)
-        if chunk_token_size + sentence_tokens < max_chunk_token_size:
-            chunk = f'{chunk} {sentence}'
-            chunk_token_size = chunk_token_size + sentence_tokens
+        if chunk_token_size + sentence_tokens > max_tokens:
+            chunks.append(chunk.strip())
+            chunk, chunk_token_size = sentence + ". ", sentence_tokens
         else:
-            chunks.append(chunk)
-            chunk = sentence
-            chunk_token_size = sentence_tokens
+            chunk += sentence + ". "
+            chunk_token_size += sentence_tokens
+
+    if chunk:
+        chunks.append(chunk.strip())
     return chunks
-    
-def summarize_summaries(chunks, token_estimator, section, client, my_temperature, my_prompt, my_content):
-    merged_section_summary = ''
-    for item in chunks:
-        item_max_tokens=max(token_estimator.estimate(item)*section.importance, 400)
-        response = openaicompletion(client, item, my_temperature, my_prompt, my_content, int(item_max_tokens))
-        summary = response.choices[0].message.content
-        merged_section_summary = f'{merged_section_summary} {summary}'
-    return merged_section_summary
 
 
-            
-    
-# def find_max_x():
-#     max_x = 1  # Initialize max_x to the smallest possible positive integer
+def openai_completion(client: OpenAI, text, temperature, prompt, content, max_tokens=400):
+    response = client.chat.completions.create(
+        model='gpt-3.5-turbo',
+        temperature=temperature,
+        messages=[
+            {'role': 'system', 'content': prompt},
+            {'role': 'user', 'content': f'{content}:{text}'}
+        ],
+    )
+    return response
 
-#     for x in range(2700, 4050 + 1):
-#         y = a / x
-#         if y.is_integer() and x > max_x:
-#             max_x = x
 
-#     return max_x
- 
 def main():
     load_dotenv(override=True)
- 
-    OPENAI_KEY=getenv('OPENAI_KEY')
-     
-    OPENAI_TOKEN_LIMIT = 4050
-    my_prompt='You are a legal professional. Answer in greek and use legal language'
-    
+    OPENAI_KEY = getenv('OPENAI_KEY')
+    OPENAI_TOKEN_LIMIT = 16385  # Μέγιστο όριο tokens για το μοντέλο
+    SAFE_TOKEN_LIMIT = 10000  # Κρατάω περιθώριο για prompt
+    my_prompt = (
+        "You are a legal expert specializing in public procurement law. Provide an analytical summary focusing on the interpretation of legal principles, avoiding direct citations of legal texts unless explicitly important. Emphasize theoretical aspects and implications rather than procedural details. The summary should be in Greek."
+    )
     annotation_mappings = read_json_file(join('documents', 'annotation_mappings.json'))
- 
-    annotated_decision = AnnotatedDecision.from_json(join('documents', 'annotated_decisions', 'ste_2221-2023.json'), annotation_mappings)
- 
-    print(annotated_decision.document_id)
- 
+    decision_number = 'ste_2325-2023'
+    annotated_decision = read_json_file(join('documents', 'annotated_decisions', f'{decision_number}.json'))
+    
     client = OpenAI(api_key=OPENAI_KEY)
-    
     token_estimator = TokenEstimator()
- 
-    decision_tokens = annotated_decision.get_document_tokens(token_estimator)
- 
-    summary_tokens = max(decision_tokens * 0.3, 15000)
- 
-    all_importance_times_tokens = sum([(annotation.importance * token_estimator.estimate(annotation.text)) for annotation in annotated_decision.annotations])
+    merged_full_summary = ''
     
-    print("all_importance_times_tokens=",all_importance_times_tokens)
-    law_list=[]
-    merged_full_summary=''
-    for section in annotated_decision.annotations:
-        print(section.class_name)
-        max_section_summary_tokens=400
-        if section.class_name=='other':
-            continue
-        elif section.class_name=='admissibility':
-            my_temperature=0.7
-            my_content="Summarize. If you can't, give the basic notion."
-        elif section.class_name=='overview':
-            my_temperature=0.8
-            my_content="Summarize. If you can't, give the basic notion."
-        elif section.class_name=='law':
-            my_temperature=1.0
-            my_content="Give only a list of number article, paragraph, name and the title of the laws, mentioned in this text"
-            max_section_summary_tokens=250
-        elif section.class_name=='interpretation':
-            my_temperature=0.7
-            my_content="Mention the law that is interpreted and summarize."
-        elif section.class_name=='previous-ruling':
-            my_temperature=0.7
-            my_content="Summarize. If you can't, give the basic notion."
-        elif section.class_name=='facts':
-            my_temperature=1.0
-            my_content="Summarize the key facts."
-        elif section.class_name=='party-claims':
-            my_temperature=0.5
-            my_content="Summarize. If you can't, give the basic notion.Use greek language"
-        elif section.class_name=='court-response':
-            my_temperature=0.7
-            my_content="Summarize. If you can't, give the basic notion.Use greek language"
-        elif section.class_name=='court-ruling':
-            my_temperature=1
-            my_content="Tell me what the court ruled.Use greek language"
-        elif section.class_name=='important':
-            my_temperature=0.7
-            my_content="Summarize. If you can't, give the basic notion.Use greek language"
-
-        section_input_tokens = token_estimator.estimate(section.text)
-        importance_times_tokens = section_input_tokens * section.importance
-        portion = importance_times_tokens / all_importance_times_tokens
-        section_summary_tokens = max (portion*summary_tokens, max_section_summary_tokens)
-        all_prompt_tokens=math.floor(token_estimator.estimate(my_content)+token_estimator.estimate(my_prompt))
-        print(section_summary_tokens)
-        if section_summary_tokens + section_input_tokens + all_prompt_tokens> OPENAI_TOKEN_LIMIT:
-            print(section.class_name, "was sliced")
-            sentences = split_to_sentences(section.text)
-            n_chunks = math.ceil((section_summary_tokens + section_input_tokens) / OPENAI_TOKEN_LIMIT)
-            chunk_token_size=min((section_summary_tokens/ n_chunks) + (section_input_tokens / n_chunks)-all_prompt_tokens,3200)
-            max_chunk_token_size = math.floor(max(chunk_token_size, max_section_summary_tokens))
-            #Math nx=4050/1+portion
-            #na vrw enan orthologiko kai mathimatika artio tropo na xwrizw to keimeno 
-            chunks=create_chunks(sentences,token_estimator, max_chunk_token_size)
-            merged_section_summary=summarize_summaries(chunks, token_estimator, section, client, my_temperature, my_prompt, my_content)
-            if section.class_name=="law":
-                law_list.append(merged_section_summary)
-                continue
-            
-            merged_section_summary_tokens=token_estimator.estimate(merged_section_summary)
-            if merged_section_summary_tokens>3200:
-                sentences=split_to_sentences(merged_section_summary)
-                chunks=create_chunks(sentences,token_estimator, 3300)
-                merged_section_summary=summarize_summaries(chunks, token_estimator, section, client, my_temperature, my_prompt, my_content)
-                merged_section_summary_tokens=token_estimator.estimate(merged_section_summary)
-            merged_full_summary=merged_full_summary+merged_section_summary
-            
-        else:
-            response = openaicompletion(client, section.text, my_temperature, my_prompt, my_content, int(section_summary_tokens))
-            summary = response.choices[0].message.content
-            merged_full_summary=merged_full_summary+summary
-            
-    merged_full_summary_tokens=token_estimator.estimate(merged_full_summary)
-    
-    if merged_full_summary_tokens>10000:
-        print(merged_full_summary_tokens)
-        print("further summarization")
-        sections = [merged_full_summary[i:i + 2500] for i in range(0, len(merged_full_summary), 2500)]
-        my_content="Further summarize this court decision summary"
-        summaries = []
-        for section in sections:
-            response = openaicompletion(client, merged_full_summary, my_temperature, my_prompt, my_content,1500)
-            summary = response.choices[0].message.content
-            summaries.append(summary)
-        merged_full_summary="/n".join(summaries)
+    for idx, section in enumerate(annotated_decision['annotations'], start=1):
+        class_name = section.get('name', 'other')
+        total_parts = len(annotated_decision['annotations'])
+        print(f'Μέρος {idx} από {total_parts}: {class_name}')
+        max_section_summary_tokens = 700
+        my_temperature, my_content = 0.4, 'Summarize the interpretation of the following legal text in Greek, avoiding direct citations unless they are critical.'
+        #πολλά tokens=περισσότερη πληροφορία χαμηλό temperature=ακριβέστερη απόδοση
+        if class_name == 'law' or class_name == 'important':
+            my_content = "Provide an interpretation of the legal provisions, including key references only if they are critical. The summary should be in Greek."
+            my_temperature, my_content, max_section_summary_tokens = (
+                0.3, 'Provide a structured interpretation of the legal provisions mentioned, focusing on their implications and theoretical aspects. The summary should be in Greek.', 1000
+            )
+        elif class_name in ['admissibility', 'interpretation', 'previous-ruling', 'court-response']:
+            my_temperature = 0.4
+        elif class_name == 'overview':
+            my_temperature = 0.6
+        elif class_name in ['facts', 'court-ruling', 'court-response']:
+            max_section_summary_tokens = 900  
+            my_temperature = 0.5  
+            max_section_summary_tokens = 500  
+            my_temperature = 0.5
+            my_content = 'Summarize the key legal aspects without excessive case details and avoid direct legal citations unless necessary. The summary should be in Greek.'
+        elif class_name == 'party-claims':
+            my_temperature = 0.4
+        elif class_name == 'important':
+            my_temperature = 0.5 
+            my_temperature = 0.7
+            my_content = 'Provide a deeper interpretation of this section, including references to legal texts only if they are essential. The summary should be in Greek.'
         
+        response = openai_completion(
+            client, section['text'], my_temperature, my_prompt, my_content, int(max_section_summary_tokens)
+        )
+        merged_section_summary = response.choices[0].message.content
+        merged_full_summary += f' {merged_section_summary}'
     
-    print(annotated_decision.document_id)
-    print(annotated_decision.court)
-    print(annotated_decision.related_department)
-    print(annotated_decision.legal_remedy)
-    print("ΣΗΜΑΝΤΙΚΗ ΝΟΜΟΘΕΣΙΑ")
-    print(law_list)
-    print ("ΠΕΡΙΛΗΨΗ")
-    print(merged_full_summary)
-            
-            #print(chunks)
-            # for item in chunks:
-            #     print(item)
-            #     print(token_estimator.estimate(item))
-            #     print(max_chunk_token_size)
-            #     print('\n\n')
- 
-        #response = openaicompletion(client, section.text)
-        #summary = response.choices[0].message.content
- 
- 
- 
-    # for item in query_parser.split_to_sentences():
-    #     print(item)
-    #     print('\n\n\n')
+    # Περιορισμός μεγέθους κειμένου για αποφυγή OpenAI error
+    merged_summary_tokens = token_estimator.estimate(merged_full_summary)
+    if merged_summary_tokens > SAFE_TOKEN_LIMIT:
+        print(f'Προειδοποίηση: Το σύνολο της περίληψης ({merged_summary_tokens} tokens) είναι πολύ μεγάλο. Μειώνεται για αποφυγή σφάλματος.')
+        merged_full_summary = ' '.join(merged_full_summary.split()[:SAFE_TOKEN_LIMIT]) if merged_summary_tokens > SAFE_TOKEN_LIMIT else merged_full_summary
     
- 
-main()
+    # Αν το merged_full_summary είναι πολύ μεγάλο, το χωρίζω σε μικρότερα chunks
+    if merged_summary_tokens > SAFE_TOKEN_LIMIT:
+        print(f'Προειδοποίηση: Το σύνολο της περίληψης ({merged_summary_tokens} tokens) είναι πολύ μεγάλο. Χωρίζεται σε μικρότερα τμήματα για αποφυγή σφάλματος.')
+        chunks = split_text_into_chunks(merged_full_summary, 4000, token_estimator)
+        summarized_chunks = []
+        
+        for chunk in chunks:
+            chunk_summary = openai_completion(
+                client, chunk, 0.4, my_prompt,
+                "Summarize this section concisely in Greek while keeping key legal principles.",
+                800
+            )
+            summarized_chunks.append(chunk_summary.choices[0].message.content)
+        
+        merged_full_summary = ' '.join(summarized_chunks)
+    
+    # Εισαγωγή γενικού συμπεράσματος
+    summary_conclusion = openai_completion(
+        client, merged_full_summary, 0.4, my_prompt,
+        "Summarize the key legal principles and their broader implications, excluding procedural references unless necessary. The summary should be in Greek.",
+        800
+    )
+    merged_full_summary += f"\n\nΣυμπέρασμα:\n{summary_conclusion.choices[0].message.content}"
+    
+    output_folder = 'documents/my_summaries'
+    makedirs(output_folder, exist_ok=True)
+    with open(join(output_folder, f'{decision_number}.txt'), 'w', encoding='utf-8') as file:
+        file.write(merged_full_summary.strip())
+    
+    print(f'Περίληψη αποθηκεύτηκε: {decision_number}.txt')
+
+
+if __name__ == '__main__':
+    main()
